@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { url, jobType } = await request.json()
+    const { url, jobType, maxPages } = await request.json()
 
     // Create scraping job
     const job = await prisma.scrapingJob.create({
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Start scraping in background (non-blocking)
-    scrapeInBackground(job.id, url, jobType || 'general')
+    scrapeInBackground(job.id, url, jobType || 'general', maxPages || 10)
 
     return NextResponse.json(job)
   } catch (error) {
@@ -69,23 +69,8 @@ function extractTitle(html: string): string {
   return match ? match[1].trim() : ''
 }
 
-// Extract all hrefs matching pattern
-function extractHrefs(html: string, pattern: RegExp): string[] {
-  const hrefs: string[] = []
-  // Match href attributes in anchor tags
-  const hrefRegex = /href=["']([^"']+)["']/gi
-  let match
-  while ((match = hrefRegex.exec(html)) !== null) {
-    if (pattern.test(match[1])) {
-      hrefs.push(match[1])
-    }
-  }
-  return hrefs
-}
-
 // Extract company name from URL slug
 function extractCompanyNameFromUrl(url: string): string {
-  // Get the last path segment and convert to title case
   const parts = url.replace(/\/$/, '').split('/')
   const slug = parts[parts.length - 1]
   return slug
@@ -106,6 +91,8 @@ async function fetchCompanyDetails(url: string): Promise<{
   industry: string | null
   employeeCount: string | null
   linkedinUrl: string | null
+  city: string | null
+  country: string | null
 }> {
   try {
     const response = await fetch(url, {
@@ -117,7 +104,7 @@ async function fetchCompanyDetails(url: string): Promise<{
     })
     
     if (!response.ok) {
-      return { name: extractCompanyNameFromUrl(url), description: null, email: null, phone: null, website: null, industry: null, employeeCount: null, linkedinUrl: null }
+      return { name: extractCompanyNameFromUrl(url), description: null, email: null, phone: null, website: null, industry: null, employeeCount: null, linkedinUrl: null, city: null, country: null }
     }
     
     const html = await response.text()
@@ -130,16 +117,23 @@ async function fetchCompanyDetails(url: string): Promise<{
       name = h1Match[1].trim()
     }
     
-    // Extract description from meta or first paragraph
+    // Try to get name from JSON-LD
+    const jsonLdMatch = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i)
+    if (jsonLdMatch) {
+      try {
+        const jsonLd = JSON.parse(jsonLdMatch[1])
+        if (jsonLd.name) name = jsonLd.name
+      } catch {}
+    }
+    
+    // Extract description from meta or og:description
     let description = null
+    const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
     const metaDesc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
-    if (metaDesc) {
+    if (ogDesc) {
+      description = ogDesc[1]
+    } else if (metaDesc) {
       description = metaDesc[1]
-    } else {
-      const pMatch = html.match(/<p[^>]*>([^<]{50,500})<\/p>/i)
-      if (pMatch) {
-        description = pMatch[1].trim()
-      }
     }
     
     // Extract emails
@@ -148,147 +142,192 @@ async function fetchCompanyDetails(url: string): Promise<{
     const validEmails = emailMatches.filter(e => 
       !e.includes('example.') && 
       !e.includes('@sentry') &&
-      !e.includes('webpack')
+      !e.includes('webpack') &&
+      !e.includes('wixpress') &&
+      !e.includes('@thehub')
     )
     const email = validEmails[0] || null
     
     // Extract phone
     const phoneRegex = /(?:\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{0,4}/g
     const phones = text.match(phoneRegex) || []
-    const validPhones = phones.filter(p => p.replace(/\D/g, '').length >= 8)
+    const validPhones = phones.filter(p => p.replace(/\D/g, '').length >= 8 && p.replace(/\D/g, '').length <= 15)
     const phone = validPhones[0] || null
     
-    // Extract website
+    // Extract website - look for explicit website links
     let website = null
-    const websiteMatch = html.match(/href=["'](https?:\/\/(?!thehub|linkedin|twitter|facebook|instagram)[^"']+)["'][^>]*>(?:[^<]*(?:website|visit|homepage)[^<]*)/i)
-    if (websiteMatch) {
-      website = websiteMatch[1]
+    const websitePatterns = [
+      /href=["'](https?:\/\/(?!thehub|linkedin|twitter|facebook|instagram|youtube)[^"'\s]+)["'][^>]*>\s*(?:Website|Visit|Homepage|Site)/gi,
+      /<a[^>]+href=["'](https?:\/\/(?!thehub|linkedin|twitter|facebook|instagram|youtube)[^"'\s]+)["'][^>]*class=["'][^"']*website[^"']*["']/gi,
+    ]
+    for (const pattern of websitePatterns) {
+      const match = pattern.exec(html)
+      if (match) {
+        website = match[1]
+        break
+      }
     }
     
     // Extract LinkedIn
-    const linkedinMatch = html.match(/href=["'](https?:\/\/(?:www\.)?linkedin\.com\/company\/[^"']+)["']/i)
+    const linkedinMatch = html.match(/href=["'](https?:\/\/(?:www\.)?linkedin\.com\/company\/[^"'\s]+)["']/i)
     const linkedinUrl = linkedinMatch ? linkedinMatch[1] : null
     
-    // Try to extract industry
+    // Try to extract industry/tags
     let industry = null
-    const industryMatch = html.match(/(?:industry|sector|category)[:\s]*([A-Za-z\s&]+)/i)
-    if (industryMatch) {
-      industry = industryMatch[1].trim().slice(0, 100)
+    const tagMatch = html.match(/(?:industry|sector|category|tags?)[:\s]*["']?([A-Za-z\s&,]+)["']?/i)
+    if (tagMatch) {
+      industry = tagMatch[1].trim().slice(0, 100)
     }
     
     // Try to extract employee count
     let employeeCount = null
-    const empMatch = text.match(/(\d+(?:-\d+)?)\s*(?:employees|team members|people)/i)
+    const empMatch = text.match(/(\d+(?:\s*-\s*\d+)?)\s*(?:employees|team members|people|staff)/i)
     if (empMatch) {
-      employeeCount = empMatch[1]
+      employeeCount = empMatch[1].replace(/\s/g, '')
     }
     
-    return { name, description, email, phone, website, industry, employeeCount, linkedinUrl }
+    // Try to extract location
+    let city = null
+    let country = null
+    const locationMatch = html.match(/(?:location|based in|headquarters)[:\s]*["']?([A-Za-z\s]+),?\s*([A-Za-z\s]+)?["']?/i)
+    if (locationMatch) {
+      city = locationMatch[1]?.trim() || null
+      country = locationMatch[2]?.trim() || null
+    }
+    
+    return { name, description, email, phone, website, industry, employeeCount, linkedinUrl, city, country }
   } catch (error) {
     console.error('Failed to fetch company details:', error)
-    return { name: extractCompanyNameFromUrl(url), description: null, email: null, phone: null, website: null, industry: null, employeeCount: null, linkedinUrl: null }
+    return { name: extractCompanyNameFromUrl(url), description: null, email: null, phone: null, website: null, industry: null, employeeCount: null, linkedinUrl: null, city: null, country: null }
   }
 }
 
-async function scrapeInBackground(jobId: number, url: string, jobType: string) {
-  try {
-    console.log(`Starting scrape job ${jobId} for ${url} (type: ${jobType})`)
-    
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-      },
-    })
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+// Extract startup URLs from TheHub.io page
+function extractTheHubStartups(html: string): string[] {
+  const urls: string[] = []
+  
+  // Pattern for startup links on thehub.io
+  // They typically look like /startups/company-name
+  const patterns = [
+    /href=["'](\/startups\/[a-z0-9-]+)["']/gi,
+    /href=["'](https?:\/\/thehub\.io\/startups\/[a-z0-9-]+)["']/gi,
+  ]
+  
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(html)) !== null) {
+      const url = match[1].startsWith('http') ? match[1] : `https://thehub.io${match[1]}`
+      if (!urls.includes(url)) {
+        urls.push(url)
+      }
     }
-    
-    const html = await response.text()
-    console.log(`Fetched ${html.length} bytes from ${url}`)
+  }
+  
+  return urls
+}
 
+async function scrapeInBackground(jobId: number, url: string, jobType: string, maxPages: number) {
+  try {
+    console.log(`Starting scrape job ${jobId} for ${url} (type: ${jobType}, maxPages: ${maxPages})`)
+    
     let companiesFound = 0
     let emailsFound = 0
     let leadsCreated = 0
+    let totalProcessed = 0
 
     if (jobType === 'thehub') {
-      // TheHub.se specific patterns
-      // Look for links to company pages
-      const companyPatterns = [
-        /\/companies\/[^\/]+\/[^"'\s]+/gi,  // /companies/country/company-name
-        /\/startups\/[^"'\s]+/gi,           // /startups/company-name
-        /\/company\/[^"'\s]+/gi,            // /company/company-name
-      ]
+      // TheHub.io scraping with pagination
+      const baseUrl = url.split('?')[0]
+      const allStartupUrls: string[] = []
       
-      const allCompanyUrls: string[] = []
-      
-      for (const pattern of companyPatterns) {
-        const matches = html.match(pattern) || []
-        allCompanyUrls.push(...matches)
+      // Scrape multiple pages
+      for (let page = 1; page <= maxPages; page++) {
+        try {
+          const pageUrl = page === 1 ? baseUrl : `${baseUrl}?page=${page}`
+          console.log(`Fetching page ${page}: ${pageUrl}`)
+          
+          const response = await fetch(pageUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.5',
+            },
+          })
+          
+          if (!response.ok) {
+            console.log(`Page ${page} returned ${response.status}, stopping pagination`)
+            break
+          }
+          
+          const html = await response.text()
+          const pageUrls = extractTheHubStartups(html)
+          
+          if (pageUrls.length === 0) {
+            console.log(`No more startups found on page ${page}, stopping`)
+            break
+          }
+          
+          allStartupUrls.push(...pageUrls)
+          console.log(`Page ${page}: Found ${pageUrls.length} startups (total: ${allStartupUrls.length})`)
+          
+          // Update job with progress
+          await prisma.scrapingJob.update({
+            where: { id: jobId },
+            data: { 
+              totalItems: allStartupUrls.length,
+              resultSummary: JSON.stringify({ 
+                status: `Scanning page ${page}...`, 
+                urlsFound: allStartupUrls.length 
+              })
+            },
+          })
+          
+          // Small delay between page fetches
+          await new Promise(resolve => setTimeout(resolve, 300))
+        } catch (e) {
+          console.error(`Error fetching page ${page}:`, e)
+          break
+        }
       }
       
-      // Also try href extraction
-      const hrefUrls = extractHrefs(html, /\/(companies|startups|company)\//i)
-      allCompanyUrls.push(...hrefUrls)
+      // Remove duplicates
+      const uniqueUrls = Array.from(new Set(allStartupUrls))
+      console.log(`Total unique startup URLs: ${uniqueUrls.length}`)
       
-      // Remove duplicates and clean URLs
-      const uniqueUrls = Array.from(new Set(
-        allCompanyUrls
-          .map(u => u.replace(/["'<>]/g, '').split('?')[0].split('#')[0])
-          .filter(u => u.length > 10 && !u.includes('javascript:'))
-      ))
-      
-      console.log(`Found ${uniqueUrls.length} unique company URLs`)
-      
-      // Determine country from main URL
-      let defaultCountry = 'Sweden'
-      if (url.includes('/norway')) defaultCountry = 'Norway'
-      else if (url.includes('/denmark')) defaultCountry = 'Denmark'
-      else if (url.includes('/finland')) defaultCountry = 'Finland'
-
       await prisma.scrapingJob.update({
         where: { id: jobId },
-        data: { totalItems: Math.min(uniqueUrls.length, 50) },
+        data: { 
+          totalItems: uniqueUrls.length,
+          resultSummary: JSON.stringify({ 
+            status: 'Processing startups...', 
+            totalFound: uniqueUrls.length 
+          })
+        },
       })
 
-      // Process up to 50 companies
-      for (const companyPath of uniqueUrls.slice(0, 50)) {
+      // Process each startup
+      for (const startupUrl of uniqueUrls) {
         try {
-          const fullUrl = companyPath.startsWith('http') 
-            ? companyPath 
-            : `https://thehub.se${companyPath}`
-
-          // Determine country from URL
-          let country = defaultCountry
-          if (companyPath.includes('/norway')) country = 'Norway'
-          else if (companyPath.includes('/denmark')) country = 'Denmark'
-          else if (companyPath.includes('/finland')) country = 'Finland'
-          else if (companyPath.includes('/sweden')) country = 'Sweden'
-
-          // Extract company name from URL
-          const companyName = extractCompanyNameFromUrl(companyPath)
+          totalProcessed++
           
-          if (!companyName || companyName.length < 2) continue
-
-          // Check if company exists
+          // Check if company already exists
+          const companySlug = startupUrl.split('/').pop() || ''
           const existingCompany = await prisma.company.findFirst({
             where: { 
               OR: [
-                { name: companyName },
-                { sourceUrl: fullUrl }
+                { sourceUrl: startupUrl },
+                { name: { contains: companySlug.replace(/-/g, ' '), mode: 'insensitive' } }
               ]
             },
           })
 
           if (!existingCompany) {
-            // Fetch additional details from company page
-            const details = await fetchCompanyDetails(fullUrl)
+            // Fetch company details
+            const details = await fetchCompanyDetails(startupUrl)
             
             const newCompany = await prisma.company.create({
               data: {
-                name: details.name || companyName,
+                name: details.name,
                 description: details.description,
                 email: details.email,
                 phone: details.phone,
@@ -296,8 +335,9 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
                 industry: details.industry,
                 employeeCount: details.employeeCount,
                 linkedinUrl: details.linkedinUrl,
-                sourceUrl: fullUrl,
-                country,
+                city: details.city,
+                country: details.country || 'Scandinavia',
+                sourceUrl: startupUrl,
                 scrapedAt: new Date(),
               },
             })
@@ -311,8 +351,8 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
                 companyName: newCompany.name,
                 email: details.email,
                 phone: details.phone,
-                source: 'thehub.se',
-                notes: `Scraped from ${fullUrl}\n${details.description || ''}`.slice(0, 1000),
+                source: 'thehub.io',
+                notes: details.description?.slice(0, 500) || `Scraped from ${startupUrl}`,
               },
             })
             
@@ -321,19 +361,42 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
             if (details.email) emailsFound++
           }
 
-          await prisma.scrapingJob.update({
-            where: { id: jobId },
-            data: { itemsScraped: companiesFound },
-          })
+          // Update progress every 5 items
+          if (totalProcessed % 5 === 0) {
+            await prisma.scrapingJob.update({
+              where: { id: jobId },
+              data: { 
+                itemsScraped: companiesFound,
+                resultSummary: JSON.stringify({
+                  status: `Processing ${totalProcessed}/${uniqueUrls.length}...`,
+                  companiesFound,
+                  leadsCreated,
+                  emailsFound,
+                })
+              },
+            })
+          }
           
           // Small delay to be respectful
-          await new Promise(resolve => setTimeout(resolve, 500))
+          await new Promise(resolve => setTimeout(resolve, 200))
         } catch (e) {
-          console.error('Error processing company:', e)
+          console.error('Error processing startup:', e)
         }
       }
     } else {
-      // General scraping - extract emails and company info from the page
+      // General website scraping
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const html = await response.text()
       const text = extractText(html)
       
       // Find emails
@@ -408,6 +471,7 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
           companiesFound,
           leadsCreated,
           emailsFound,
+          totalProcessed,
         }),
       },
     })
