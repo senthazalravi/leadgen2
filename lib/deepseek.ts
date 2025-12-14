@@ -1,4 +1,8 @@
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-b07618e5177e4d1bb3db717b5b412500'
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
+
+if (!DEEPSEEK_API_KEY) {
+  console.warn('Warning: DEEPSEEK_API_KEY environment variable is not set')
+}
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1'
 
 interface Message {

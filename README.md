@@ -37,13 +37,15 @@ git push -u origin main
 
 Go to **Site settings** → **Environment variables** and add:
 
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `DATABASE_URL` | `postgresql://neondb_owner:npg_ec3R4mAnMlvz@ep-rough-paper-adwof7s3-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require` | Neon PostgreSQL connection |
-| `RESEND_API_KEY` | `re_L5r1XE9b_CJJmAutUVcEfDSEcjdmxXZEF` | Resend API key for emails |
-| `DEEPSEEK_API_KEY` | `sk-b07618e5177e4d1bb3db717b5b412500` | DeepSeek AI for analysis |
-| `FROM_EMAIL` | `Outrinsic <onboarding@resend.dev>` | Default from email |
-| `JWT_SECRET` | `outrinsic-secret-key-2024` | JWT signing secret |
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Your Neon PostgreSQL connection string |
+| `RESEND_API_KEY` | Your Resend API key for emails |
+| `DEEPSEEK_API_KEY` | Your DeepSeek AI API key |
+| `FROM_EMAIL` | Default from email (e.g., `Outrinsic <noreply@yourdomain.com>`) |
+| `JWT_SECRET` | A secure random string for JWT signing |
+
+> ⚠️ **Never commit API keys to Git!** Use environment variables only.
 
 ### Step 4: Database (Auto-configured)
 
