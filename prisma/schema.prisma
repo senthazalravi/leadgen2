@@ -42,7 +42,7 @@ model Company {
   leads           Lead[]
   jobs            JobOpening[]
   
-  @@map("companies")
+  @@map("leadgen_2_companies")
 }
 
 model Lead {
@@ -76,7 +76,7 @@ model Lead {
   tags            LeadTag[]
   emailLogs       EmailLog[]
   
-  @@map("leads")
+  @@map("leadgen_2_leads")
 }
 
 model Tag {
@@ -87,7 +87,7 @@ model Tag {
   
   leads     LeadTag[]
   
-  @@map("tags")
+  @@map("leadgen_2_tags")
 }
 
 model LeadTag {
@@ -98,7 +98,7 @@ model LeadTag {
   tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
   
   @@id([leadId, tagId])
-  @@map("lead_tags")
+  @@map("leadgen_2_lead_tags")
 }
 
 model JobOpening {
@@ -115,7 +115,7 @@ model JobOpening {
   
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   
-  @@map("job_openings")
+  @@map("leadgen_2_job_openings")
 }
 
 model EmailTemplate {
@@ -131,7 +131,7 @@ model EmailTemplate {
   emailLogs   EmailLog[]
   schedules   EmailSchedule[]
   
-  @@map("email_templates")
+  @@map("leadgen_2_email_templates")
 }
 
 model EmailLog {
@@ -151,7 +151,7 @@ model EmailLog {
   lead          Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   template      EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   
-  @@map("email_logs")
+  @@map("leadgen_2_email_logs")
 }
 
 model EmailSchedule {
@@ -170,7 +170,7 @@ model EmailSchedule {
   
   template        EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   
-  @@map("email_schedules")
+  @@map("leadgen_2_email_schedules")
 }
 
 model ScrapingJob {
@@ -187,7 +187,7 @@ model ScrapingJob {
   completedAt   DateTime? @map("completed_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   
-  @@map("scraping_jobs")
+  @@map("leadgen_2_scraping_jobs")
 }
 
 model Settings {
@@ -195,6 +195,5 @@ model Settings {
   key       String  @unique
   value     String
   
-  @@map("settings")
+  @@map("leadgen_2_settings")
 }
-

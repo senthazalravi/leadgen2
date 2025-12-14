@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import * as cheerio from 'cheerio'
 
 export async function POST(request: NextRequest) {
   const session = await getSession()
@@ -22,7 +21,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Start scraping in background
+    // Start scraping in background (non-blocking)
     scrapeInBackground(job.id, url, jobType || 'general')
 
     return NextResponse.json(job)
@@ -49,6 +48,43 @@ export async function GET() {
   }
 }
 
+// Simple HTML text extraction without cheerio
+function extractText(html: string): string {
+  // Remove script and style tags
+  let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  // Remove HTML tags
+  text = text.replace(/<[^>]+>/g, ' ')
+  // Decode entities
+  text = text.replace(/&nbsp;/g, ' ')
+  text = text.replace(/&amp;/g, '&')
+  text = text.replace(/&lt;/g, '<')
+  text = text.replace(/&gt;/g, '>')
+  text = text.replace(/&quot;/g, '"')
+  // Normalize whitespace
+  text = text.replace(/\s+/g, ' ').trim()
+  return text
+}
+
+// Extract title from HTML
+function extractTitle(html: string): string {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+  return match ? match[1].trim() : ''
+}
+
+// Extract links matching pattern
+function extractLinks(html: string, pattern: RegExp): { href: string; text: string }[] {
+  const links: { href: string; text: string }[] = []
+  const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi
+  let match
+  while ((match = regex.exec(html)) !== null) {
+    if (pattern.test(match[1])) {
+      links.push({ href: match[1], text: match[2].trim() })
+    }
+  }
+  return links
+}
+
 async function scrapeInBackground(jobId: number, url: string, jobType: string) {
   try {
     const response = await fetch(url, {
@@ -58,28 +94,18 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
     })
     
     const html = await response.text()
-    const $ = cheerio.load(html)
 
     let companiesFound = 0
     let emailsFound = 0
 
     if (jobType === 'thehub') {
-      // Find company links
-      const companyLinks: { name: string; url: string }[] = []
-      
-      $('a[href*="/companies/"], a[href*="/startups/"]').each((_, el) => {
-        const href = $(el).attr('href')
-        const name = $(el).text().trim()
-        if (href && name && name.length > 2) {
-          const fullUrl = href.startsWith('http') ? href : `https://thehub.se${href}`
-          companyLinks.push({ name, url: fullUrl })
-        }
-      })
+      // Find company links using regex
+      const companyLinks = extractLinks(html, /\/companies\/|\/startups\//)
 
-      // Remove duplicates
+      // Remove duplicates by URL
       const uniqueCompanies = Array.from(
-        new Map(companyLinks.map((c) => [c.url, c])).values()
-      ).slice(0, 30)
+        new Map(companyLinks.map((c) => [c.href, c])).values()
+      ).filter(c => c.text && c.text.length > 2).slice(0, 30)
 
       await prisma.scrapingJob.update({
         where: { id: jobId },
@@ -88,22 +114,26 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
 
       for (const company of uniqueCompanies) {
         try {
-          // Determine country
-          let country = 'Sweden'
-          if (url.includes('/norway') || company.url.includes('/norway')) country = 'Norway'
-          if (url.includes('/denmark') || company.url.includes('/denmark')) country = 'Denmark'
-          if (url.includes('/finland') || company.url.includes('/finland')) country = 'Finland'
+          const fullUrl = company.href.startsWith('http') 
+            ? company.href 
+            : `https://thehub.se${company.href}`
 
-          // Create company
+          // Determine country from URL
+          let country = 'Sweden'
+          if (url.includes('/norway') || company.href.includes('/norway')) country = 'Norway'
+          if (url.includes('/denmark') || company.href.includes('/denmark')) country = 'Denmark'
+          if (url.includes('/finland') || company.href.includes('/finland')) country = 'Finland'
+
+          // Check if company exists
           const existingCompany = await prisma.company.findFirst({
-            where: { name: company.name },
+            where: { name: company.text },
           })
 
           if (!existingCompany) {
             const newCompany = await prisma.company.create({
               data: {
-                name: company.name,
-                sourceUrl: company.url,
+                name: company.text,
+                sourceUrl: fullUrl,
                 country,
                 scrapedAt: new Date(),
               },
@@ -115,7 +145,7 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
                 companyId: newCompany.id,
                 companyName: newCompany.name,
                 source: 'thehub.se',
-                notes: `Scraped from ${company.url}`,
+                notes: `Scraped from ${fullUrl}`,
               },
             })
 
@@ -132,22 +162,22 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
       }
     } else {
       // General scraping - extract emails and company info
-      const text = $('body').text()
+      const text = extractText(html)
       
-      // Find emails
+      // Find emails using regex
       const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g
       const emails = [...new Set(text.match(emailRegex) || [])]
       emailsFound = emails.length
 
       // Get title as company name
-      const title = $('title').text().trim() || new URL(url).hostname
+      const title = extractTitle(html) || new URL(url).hostname
 
       // Find phone numbers
       const phoneRegex = /[\+]?[(]?[0-9]{1,3}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}/g
       const phones = text.match(phoneRegex) || []
 
-      // Find LinkedIn
-      const linkedinLink = $('a[href*="linkedin.com"]').attr('href')
+      // Find LinkedIn link
+      const linkedinMatch = html.match(/href=["']([^"']*linkedin\.com[^"']*)["']/i)
 
       // Create company
       const company = await prisma.company.create({
@@ -157,7 +187,7 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
           sourceUrl: url,
           email: emails[0] || null,
           phone: phones[0] || null,
-          linkedinUrl: linkedinLink || null,
+          linkedinUrl: linkedinMatch ? linkedinMatch[1] : null,
           description: text.slice(0, 2000),
           scrapedAt: new Date(),
         },
@@ -204,4 +234,3 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
     })
   }
 }
-

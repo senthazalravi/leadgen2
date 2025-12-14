@@ -7,6 +7,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/leads': { title: 'Leads', subtitle: 'Manage and qualify your leads' },
   '/companies': { title: 'Companies', subtitle: 'Scandinavian startup ecosystem' },
   '/scraper': { title: 'Web Scraper', subtitle: 'Discover leads automatically' },
+  '/ai-tools': { title: 'AI Tools', subtitle: 'DeepSeek-powered analysis and proposals' },
   '/emails': { title: 'Emails', subtitle: 'Templates and automation' },
   '/settings': { title: 'Settings', subtitle: 'Configure your preferences' },
 }

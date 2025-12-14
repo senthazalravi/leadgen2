@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   Zap,
-  ChevronRight
+  ChevronRight,
+  Sparkles
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -27,6 +28,7 @@ const navItems = [
   { path: '/leads', icon: Users, label: 'Leads' },
   { path: '/companies', icon: Building2, label: 'Companies' },
   { path: '/scraper', icon: Globe, label: 'Web Scraper' },
+  { path: '/ai-tools', icon: Sparkles, label: 'AI Tools' },
   { path: '/emails', icon: Mail, label: 'Emails' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]

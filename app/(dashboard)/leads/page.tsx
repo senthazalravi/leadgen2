@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Plus, Search, Filter, Download, Trash2, Edit,
-  Linkedin, MessageCircle, X, Sparkles, Users
+  Linkedin, MessageCircle, X, Sparkles, Users, Mail
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import LeadModal from '@/components/LeadModal'
@@ -161,17 +161,40 @@ export default function LeadsPage() {
 
   const handleAIEnrich = async (leadId: number) => {
     try {
-      toast.loading('Enriching with AI...', { id: 'ai-enrich' })
+      toast.loading('Analyzing with DeepSeek AI...', { id: 'ai-enrich' })
       const res = await fetch(`/api/leads/enrich/${leadId}`, { method: 'POST' })
       if (res.ok) {
-        toast.success('Lead enriched!', { id: 'ai-enrich' })
+        toast.success('Lead analyzed!', { id: 'ai-enrich' })
         loadLeads()
       } else {
         const data = await res.json()
-        toast.error(data.error || 'Enrichment failed', { id: 'ai-enrich' })
+        toast.error(data.error || 'Analysis failed', { id: 'ai-enrich' })
       }
     } catch (error) {
-      toast.error('AI enrichment failed', { id: 'ai-enrich' })
+      toast.error('AI analysis failed', { id: 'ai-enrich' })
+    }
+  }
+
+  const handleGenerateEmail = async (leadId: number) => {
+    try {
+      toast.loading('Generating personalized email...', { id: 'gen-email' })
+      const res = await fetch('/api/ai/generate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        // Copy to clipboard
+        const emailText = `Subject: ${data.email.subject}\n\n${data.email.body.replace(/<[^>]*>/g, '')}`
+        navigator.clipboard.writeText(emailText)
+        toast.success('Email generated and copied!', { id: 'gen-email' })
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Generation failed', { id: 'gen-email' })
+      }
+    } catch (error) {
+      toast.error('Email generation failed', { id: 'gen-email' })
     }
   }
 
@@ -421,9 +444,16 @@ export default function LeadsPage() {
                       <button
                         onClick={() => handleAIEnrich(lead.id)}
                         className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-purple-400"
-                        title="AI Enrich"
+                        title="AI Analysis"
                       >
                         <Sparkles className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleGenerateEmail(lead.id)}
+                        className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-green-400"
+                        title="Generate Email"
+                      >
+                        <Mail className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => {

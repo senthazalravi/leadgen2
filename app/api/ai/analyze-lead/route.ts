@@ -3,19 +3,17 @@ import prisma from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { analyzeLead } from '@/lib/deepseek'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest) {
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const { id } = await params
+    const { leadId } = await request.json()
+
     const lead = await prisma.lead.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: leadId },
       include: { company: true },
     })
 
@@ -23,18 +21,21 @@ export async function POST(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
     }
 
-    // Get company info
-    let companyInfo = lead.company?.description || ''
-    if (lead.company?.rawData) {
-      try {
-        const rawData = JSON.parse(lead.company.rawData)
-        if (rawData.aiAnalysis) {
-          companyInfo += '\nAI Analysis: ' + JSON.stringify(rawData.aiAnalysis)
-        }
-      } catch {}
+    // Get company analysis if available
+    let companyInfo = ''
+    if (lead.company) {
+      companyInfo = lead.company.description || ''
+      if (lead.company.rawData) {
+        try {
+          const rawData = JSON.parse(lead.company.rawData)
+          if (rawData.aiAnalysis) {
+            companyInfo += '\n' + JSON.stringify(rawData.aiAnalysis)
+          }
+        } catch {}
+      }
     }
 
-    // Analyze the lead using DeepSeek
+    // Analyze the lead
     const analysis = await analyzeLead(
       lead.firstName || '',
       lead.lastName || '',
@@ -47,7 +48,7 @@ export async function POST(
 
     // Update lead with AI analysis
     await prisma.lead.update({
-      where: { id: parseInt(id) },
+      where: { id: leadId },
       data: {
         aiSummary: analysis.summary,
         aiRecommendedApproach: JSON.stringify({
@@ -61,14 +62,11 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      aiSummary: analysis.summary,
-      aiRecommendedApproach: analysis.recommendedApproach,
-      talkingPoints: analysis.talkingPoints,
-      objectionHandling: analysis.objectionHandling,
-      nextSteps: analysis.nextSteps,
+      analysis,
     })
   } catch (error: any) {
-    console.error('AI enrichment error:', error)
-    return NextResponse.json({ error: error.message || 'AI enrichment failed' }, { status: 500 })
+    console.error('Lead analysis error:', error)
+    return NextResponse.json({ error: error.message || 'Analysis failed' }, { status: 500 })
   }
 }
+

@@ -308,15 +308,67 @@ export default function LeadModal({ lead, tags, onClose, onSave }: LeadModalProp
 
           {/* AI Summary */}
           {lead?.aiSummary && (
-            <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
-              <p className="text-sm font-medium text-purple-400 mb-2">AI Summary</p>
-              <p className="text-sm text-slate-300">{lead.aiSummary}</p>
-              {lead.aiRecommendedApproach && (
-                <>
-                  <p className="text-sm font-medium text-purple-400 mt-3 mb-2">Recommended Approach</p>
-                  <p className="text-sm text-slate-300">{lead.aiRecommendedApproach}</p>
-                </>
-              )}
+            <div className="space-y-3">
+              <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <p className="text-sm font-medium text-purple-400 mb-2">🤖 AI Summary</p>
+                <p className="text-sm text-slate-300">{lead.aiSummary}</p>
+              </div>
+              
+              {lead.aiRecommendedApproach && (() => {
+                try {
+                  const approach = JSON.parse(lead.aiRecommendedApproach)
+                  return (
+                    <div className="space-y-3">
+                      {approach.approach && (
+                        <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                          <p className="text-xs text-green-400 mb-1">Recommended Approach</p>
+                          <p className="text-sm text-slate-300">{approach.approach}</p>
+                        </div>
+                      )}
+                      
+                      {approach.talkingPoints && (
+                        <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                          <p className="text-xs text-blue-400 mb-2">Talking Points</p>
+                          <ul className="space-y-1">
+                            {approach.talkingPoints.map((point: string, i: number) => (
+                              <li key={i} className="text-sm text-slate-300">• {point}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {approach.objectionHandling && (
+                        <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                          <p className="text-xs text-orange-400 mb-2">Objection Handling</p>
+                          <ul className="space-y-1">
+                            {approach.objectionHandling.map((obj: string, i: number) => (
+                              <li key={i} className="text-sm text-slate-300">• {obj}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {approach.nextSteps && (
+                        <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                          <p className="text-xs text-cyan-400 mb-2">Next Steps</p>
+                          <ul className="space-y-1">
+                            {approach.nextSteps.map((step: string, i: number) => (
+                              <li key={i} className="text-sm text-slate-300">{i + 1}. {step}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )
+                } catch {
+                  return (
+                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                      <p className="text-xs text-green-400 mb-1">Recommended Approach</p>
+                      <p className="text-sm text-slate-300">{lead.aiRecommendedApproach}</p>
+                    </div>
+                  )
+                }
+              })()}
             </div>
           )}
 

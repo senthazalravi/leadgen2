@@ -41,19 +41,23 @@ Go to **Site settings** → **Environment variables** and add:
 |----------|-------|-------------|
 | `DATABASE_URL` | `postgresql://neondb_owner:npg_ec3R4mAnMlvz@ep-rough-paper-adwof7s3-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require` | Neon PostgreSQL connection |
 | `RESEND_API_KEY` | `re_L5r1XE9b_CJJmAutUVcEfDSEcjdmxXZEF` | Resend API key for emails |
+| `DEEPSEEK_API_KEY` | `sk-b07618e5177e4d1bb3db717b5b412500` | DeepSeek AI for analysis |
 | `FROM_EMAIL` | `Outrinsic <onboarding@resend.dev>` | Default from email |
 | `JWT_SECRET` | `outrinsic-secret-key-2024` | JWT signing secret |
-| `OPENAI_API_KEY` | `sk-...` | (Optional) For AI enrichment |
 
-### Step 4: Initialize Database
+### Step 4: Database (Auto-configured)
 
-After first deploy, run migrations:
+The build automatically runs `prisma db push` to create tables with `leadgen_2_` prefix in your Neon database.
 
-```bash
-npx prisma db push
-```
-
-Or set up a Netlify build plugin to auto-run migrations.
+Tables created:
+- `leadgen_2_companies`
+- `leadgen_2_leads`
+- `leadgen_2_tags`
+- `leadgen_2_lead_tags`
+- `leadgen_2_email_templates`
+- `leadgen_2_email_logs`
+- `leadgen_2_scraping_jobs`
+- And more...
 
 ## 🔐 Login Credentials
 
@@ -86,10 +90,13 @@ Password: outrinsic
 - ✅ Email history/logs
 - ✅ Template variables: `{{first_name}}`, `{{company}}`, etc.
 
-### AI Integration
-- ✅ Lead enrichment with OpenAI
-- ✅ AI-generated insights
-- ✅ Recommended outreach approaches
+### AI Integration (DeepSeek)
+- ✅ Company analysis & pain point identification
+- ✅ Service recommendation engine
+- ✅ Personalized email generation
+- ✅ Lead analysis with talking points
+- ✅ Objection handling suggestions
+- ✅ Next steps recommendations
 
 ### Dashboard
 - ✅ Real-time statistics
@@ -102,10 +109,25 @@ Password: outrinsic
 - **Framework**: Next.js 14 (App Router)
 - **Database**: Neon PostgreSQL + Prisma ORM
 - **Email**: Resend API
-- **AI**: OpenAI GPT-3.5
+- **AI**: DeepSeek API (for analysis & email generation)
 - **Styling**: Tailwind CSS
 - **Charts**: Recharts
 - **Hosting**: Netlify
+
+## 💼 Outrinsic Services
+
+The platform is pre-configured to promote these services:
+
+| Service | Description | Cost Savings |
+|---------|-------------|--------------|
+| **Customer Support** | 24/7 ticket management, live chat, email support | 60-70% |
+| **Social Media** | Content creation, posting, engagement, analytics | 70% |
+| **Content Generation** | Blog posts, newsletters, SEO content | 65% |
+| **Lead Generation** | Prospect research, email outreach, LinkedIn | 70% |
+| **Payment & Refunds** | Payment verification, refund management | 60% |
+| **Community Management** | Forum moderation, user engagement | 65% |
+
+**Resources located in:** India & Indonesia
 
 ## 📁 Project Structure
 

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import {
   Building2, Search, MapPin, Users, Briefcase, Globe,
-  Linkedin, Phone, Mail, ExternalLink, Plus, Filter, X
+  Linkedin, Phone, Mail, ExternalLink, Plus, Filter, X,
+  Sparkles, RefreshCw, CheckCircle, ArrowRight
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -81,6 +82,34 @@ export default function CompaniesPage() {
       setSelectedCompany(null)
     } catch (error) {
       toast.error('Failed to delete company')
+    }
+  }
+
+  const [analyzing, setAnalyzing] = useState(false)
+  const [companyAnalysis, setCompanyAnalysis] = useState<any>(null)
+
+  const analyzeCompany = async (companyId: number) => {
+    setAnalyzing(true)
+    setCompanyAnalysis(null)
+    
+    try {
+      const res = await fetch('/api/ai/analyze-company', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId }),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        setCompanyAnalysis(data.analysis)
+        toast.success('Company analyzed with AI!')
+      } else {
+        toast.error('Analysis failed')
+      }
+    } catch (error) {
+      toast.error('Analysis failed')
+    } finally {
+      setAnalyzing(false)
     }
   }
 
@@ -382,8 +411,64 @@ export default function CompaniesPage() {
                 </div>
               </div>
               
+              {/* AI Analysis */}
+              {companyAnalysis && (
+                <div className="space-y-3 animate-slide-in">
+                  <h3 className="text-sm font-medium text-purple-400 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Analysis
+                  </h3>
+                  
+                  {companyAnalysis.summary && (
+                    <div className="p-3 rounded-lg bg-slate-800/50">
+                      <p className="text-sm text-slate-300">{companyAnalysis.summary}</p>
+                    </div>
+                  )}
+                  
+                  {companyAnalysis.suggestedServices && (
+                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                      <p className="text-xs text-green-400 mb-2">Suggested Services</p>
+                      <ul className="space-y-1">
+                        {companyAnalysis.suggestedServices.map((s: string, i: number) => (
+                          <li key={i} className="text-sm text-slate-300 flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {companyAnalysis.proposalPoints && (
+                    <div className="p-3 rounded-lg bg-outrinsic-500/10 border border-outrinsic-500/20">
+                      <p className="text-xs text-outrinsic-400 mb-2">Proposal Points</p>
+                      <ul className="space-y-1">
+                        {companyAnalysis.proposalPoints.map((p: string, i: number) => (
+                          <li key={i} className="text-sm text-slate-300 flex items-center gap-2">
+                            <ArrowRight className="w-3 h-3 text-outrinsic-400" />
+                            {p}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex items-center gap-3 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => analyzeCompany(selectedCompany.id)}
+                  disabled={analyzing}
+                  className="btn-secondary flex items-center gap-2"
+                >
+                  {analyzing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  AI Analysis
+                </button>
                 <button
                   onClick={() => createLeadFromCompany(selectedCompany)}
                   className="btn-primary flex items-center gap-2"
@@ -395,7 +480,7 @@ export default function CompaniesPage() {
                   onClick={() => handleDelete(selectedCompany.id)}
                   className="btn-secondary text-red-400 hover:text-red-300"
                 >
-                  Delete Company
+                  Delete
                 </button>
               </div>
             </div>
