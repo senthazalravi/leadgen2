@@ -159,12 +159,18 @@ export default function LeadsPage() {
     }
   }
 
+  const [enrichmentData, setEnrichmentData] = useState<any>(null)
+  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false)
+
   const handleAIEnrich = async (leadId: number) => {
     try {
-      toast.loading('Analyzing with DeepSeek AI...', { id: 'ai-enrich' })
+      toast.loading('🔍 Searching the web & analyzing with AI...', { id: 'ai-enrich' })
       const res = await fetch(`/api/leads/enrich/${leadId}`, { method: 'POST' })
       if (res.ok) {
-        toast.success('Lead analyzed!', { id: 'ai-enrich' })
+        const data = await res.json()
+        toast.success('Lead enriched with web data!', { id: 'ai-enrich' })
+        setEnrichmentData(data)
+        setShowEnrichmentModal(true)
         loadLeads()
       } else {
         const data = await res.json()
@@ -510,6 +516,202 @@ export default function LeadsPage() {
             setEditingLead(null)
           }}
         />
+      )}
+
+      {/* AI Enrichment Results Modal */}
+      {showEnrichmentModal && enrichmentData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-700 flex items-center justify-between sticky top-0 bg-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">AI Enrichment Results</h2>
+                  <p className="text-sm text-slate-400">Web research & AI analysis complete</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEnrichmentModal(false)}
+                className="p-2 rounded-lg hover:bg-slate-700 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* CEO/Founder Info */}
+              {(enrichmentData.enrichedData?.ceo || enrichmentData.enrichedData?.contacts?.length > 0) && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">Key Contacts Found</h3>
+                  
+                  {enrichmentData.enrichedData?.ceo && (
+                    <div className="p-4 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold">
+                          CEO
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">{enrichmentData.enrichedData.ceo}</p>
+                          {enrichmentData.enrichedData?.ceoEmail && (
+                            <p className="text-sm text-amber-400">{enrichmentData.enrichedData.ceoEmail}</p>
+                          )}
+                          {enrichmentData.enrichedData?.ceoLinkedin && (
+                            <a href={enrichmentData.enrichedData.ceoLinkedin} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:underline">
+                              LinkedIn Profile →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {enrichmentData.enrichedData?.contacts?.map((contact: any, idx: number) => (
+                    <div key={idx} className="p-3 rounded-lg bg-slate-800 border border-slate-700">
+                      <p className="font-medium text-white">{contact.name}</p>
+                      <p className="text-sm text-slate-400">{contact.title}</p>
+                      {contact.email && <p className="text-sm text-green-400">{contact.email}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Emails & Phones Found */}
+              <div className="grid grid-cols-2 gap-4">
+                {enrichmentData.enrichedData?.emails?.length > 0 && (
+                  <div className="p-4 rounded-lg bg-slate-800 border border-slate-700">
+                    <h4 className="text-sm font-medium text-green-400 mb-2">📧 Emails Found</h4>
+                    <div className="space-y-1">
+                      {enrichmentData.enrichedData.emails.slice(0, 5).map((email: string, idx: number) => (
+                        <p key={idx} className="text-sm text-white font-mono">{email}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {enrichmentData.enrichedData?.phones?.length > 0 && (
+                  <div className="p-4 rounded-lg bg-slate-800 border border-slate-700">
+                    <h4 className="text-sm font-medium text-blue-400 mb-2">📞 Phones Found</h4>
+                    <div className="space-y-1">
+                      {enrichmentData.enrichedData.phones.slice(0, 5).map((phone: string, idx: number) => (
+                        <p key={idx} className="text-sm text-white font-mono">{phone}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Social Links */}
+              {(enrichmentData.enrichedData?.linkedinUrl || enrichmentData.enrichedData?.twitterUrl) && (
+                <div className="flex gap-3">
+                  {enrichmentData.enrichedData?.linkedinUrl && (
+                    <a
+                      href={enrichmentData.enrichedData.linkedinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20"
+                    >
+                      <Linkedin className="w-4 h-4" />
+                      LinkedIn
+                    </a>
+                  )}
+                  {enrichmentData.enrichedData?.twitterUrl && (
+                    <a
+                      href={enrichmentData.enrichedData.twitterUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 hover:bg-sky-500/20"
+                    >
+                      𝕏 Twitter
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Company Insights */}
+              {enrichmentData.aiSummary && (
+                <div className="p-4 rounded-lg bg-slate-800 border border-slate-700">
+                  <h4 className="text-sm font-medium text-purple-400 mb-2">🧠 AI Company Insights</h4>
+                  <p className="text-slate-300">{enrichmentData.aiSummary}</p>
+                </div>
+              )}
+
+              {/* Recommended Approach */}
+              {enrichmentData.recommendedApproach && (
+                <div className="p-4 rounded-lg bg-gradient-to-r from-outrinsic-500/10 to-nordic-aurora/10 border border-outrinsic-500/20">
+                  <h4 className="text-sm font-medium text-outrinsic-400 mb-2">🎯 Recommended Approach</h4>
+                  <p className="text-slate-300">{enrichmentData.recommendedApproach}</p>
+                </div>
+              )}
+
+              {/* Talking Points */}
+              {enrichmentData.talkingPoints?.length > 0 && (
+                <div className="p-4 rounded-lg bg-slate-800 border border-slate-700">
+                  <h4 className="text-sm font-medium text-green-400 mb-3">💬 Talking Points</h4>
+                  <ul className="space-y-2">
+                    {enrichmentData.talkingPoints.map((point: string, idx: number) => (
+                      <li key={idx} className="flex items-start gap-2 text-slate-300">
+                        <span className="text-green-400 mt-1">•</span>
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Additional Info */}
+              {(enrichmentData.enrichedData?.employeeCount || enrichmentData.enrichedData?.fundingInfo) && (
+                <div className="grid grid-cols-2 gap-4">
+                  {enrichmentData.enrichedData?.employeeCount && (
+                    <div className="p-3 rounded-lg bg-slate-800 border border-slate-700">
+                      <p className="text-sm text-slate-400">Employees</p>
+                      <p className="text-lg font-semibold text-white">{enrichmentData.enrichedData.employeeCount}</p>
+                    </div>
+                  )}
+                  {enrichmentData.enrichedData?.fundingInfo && (
+                    <div className="p-3 rounded-lg bg-slate-800 border border-slate-700">
+                      <p className="text-sm text-slate-400">Funding</p>
+                      <p className="text-lg font-semibold text-white">{enrichmentData.enrichedData.fundingInfo}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-700 flex justify-end gap-3">
+              <button
+                onClick={() => setShowEnrichmentModal(false)}
+                className="btn-secondary"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  // Copy all info to clipboard
+                  const info = `
+CEO: ${enrichmentData.enrichedData?.ceo || 'N/A'}
+Email: ${enrichmentData.enrichedData?.ceoEmail || enrichmentData.enrichedData?.emails?.[0] || 'N/A'}
+Phone: ${enrichmentData.enrichedData?.phones?.[0] || 'N/A'}
+LinkedIn: ${enrichmentData.enrichedData?.linkedinUrl || 'N/A'}
+
+Insights: ${enrichmentData.aiSummary || 'N/A'}
+
+Approach: ${enrichmentData.recommendedApproach || 'N/A'}
+
+Talking Points:
+${enrichmentData.talkingPoints?.map((p: string) => `• ${p}`).join('\n') || 'N/A'}
+                  `.trim()
+                  navigator.clipboard.writeText(info)
+                  toast.success('Copied to clipboard!')
+                }}
+                className="btn-primary"
+              >
+                Copy All Info
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
