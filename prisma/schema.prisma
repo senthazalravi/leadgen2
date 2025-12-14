@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+enum LeadStatus {
+  NEW
+  HOT
+  IN_PROGRESS
+  QUALIFIED
+  DISQUALIFIED
+  FUTURE
+}
+
+model Company {
+  id              Int       @id @default(autoincrement())
+  name            String
+  website         String?
+  industry        String?
+  country         String?
+  city            String?
+  description     String?
+  employeeCount   String?   @map("employee_count")
+  foundedYear     Int?      @map("founded_year")
+  linkedinUrl     String?   @map("linkedin_url")
+  twitterUrl      String?   @map("twitter_url")
+  phone           String?
+  email           String?
+  logoUrl         String?   @map("logo_url")
+  sourceUrl       String?   @map("source_url")
+  scrapedAt       DateTime? @map("scraped_at")
+  rawData         String?   @map("raw_data")
+  hasJobOpenings  Boolean   @default(false) @map("has_job_openings")
+  jobOpeningsCount Int      @default(0) @map("job_openings_count")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  leads           Lead[]
+  jobs            JobOpening[]
+  
+  @@map("companies")
+}
+
+model Lead {
+  id              Int         @id @default(autoincrement())
+  firstName       String?     @map("first_name")
+  lastName        String?     @map("last_name")
+  email           String?
+  phone           String?
+  jobTitle        String?     @map("job_title")
+  linkedinUrl     String?     @map("linkedin_url")
+  companyId       Int?        @map("company_id")
+  companyName     String?     @map("company_name")
+  status          LeadStatus  @default(NEW)
+  score           Int         @default(0)
+  priority        Int         @default(0)
+  lastContacted   DateTime?   @map("last_contacted")
+  nextFollowUp    DateTime?   @map("next_follow_up")
+  emailSentCount  Int         @default(0) @map("email_sent_count")
+  emailOpenedCount Int        @default(0) @map("email_opened_count")
+  whatsapp        String?
+  twitter         String?
+  facebook        String?
+  notes           String?
+  source          String?
+  aiSummary       String?     @map("ai_summary")
+  aiRecommendedApproach String? @map("ai_recommended_approach")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  company         Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  tags            LeadTag[]
+  emailLogs       EmailLog[]
+  
+  @@map("leads")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  color     String    @default("#6366f1")
+  createdAt DateTime  @default(now()) @map("created_at")
+  
+  leads     LeadTag[]
+  
+  @@map("tags")
+}
+
+model LeadTag {
+  leadId    Int       @map("lead_id")
+  tagId     Int       @map("tag_id")
+  
+  lead      Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([leadId, tagId])
+  @@map("lead_tags")
+}
+
+model JobOpening {
+  id          Int       @id @default(autoincrement())
+  companyId   Int       @map("company_id")
+  title       String
+  department  String?
+  location    String?
+  jobType     String?   @map("job_type")
+  description String?
+  url         String?
+  postedDate  DateTime? @map("posted_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@map("job_openings")
+}
+
+model EmailTemplate {
+  id          Int       @id @default(autoincrement())
+  name        String
+  subject     String
+  body        String
+  isDefault   Boolean   @default(false) @map("is_default")
+  variables   String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  emailLogs   EmailLog[]
+  schedules   EmailSchedule[]
+  
+  @@map("email_templates")
+}
+
+model EmailLog {
+  id            Int       @id @default(autoincrement())
+  leadId        Int?      @map("lead_id")
+  toEmail       String    @map("to_email")
+  subject       String?
+  body          String?
+  templateId    Int?      @map("template_id")
+  status        String    @default("pending")
+  sentAt        DateTime? @map("sent_at")
+  openedAt      DateTime? @map("opened_at")
+  errorMessage  String?   @map("error_message")
+  attachmentPath String?  @map("attachment_path")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  lead          Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template      EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  
+  @@map("email_logs")
+}
+
+model EmailSchedule {
+  id              Int       @id @default(autoincrement())
+  name            String
+  templateId      Int       @map("template_id")
+  isActive        Boolean   @default(true) @map("is_active")
+  intervalHours   Int       @default(24) @map("interval_hours")
+  maxPerDay       Int       @default(50) @map("max_per_day")
+  targetStatus    String?   @map("target_status")
+  targetTags      String?   @map("target_tags")
+  lastRun         DateTime? @map("last_run")
+  nextRun         DateTime? @map("next_run")
+  emailsSentToday Int       @default(0) @map("emails_sent_today")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  
+  template        EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  @@map("email_schedules")
+}
+
+model ScrapingJob {
+  id            Int       @id @default(autoincrement())
+  url           String
+  jobType       String    @default("general") @map("job_type")
+  status        String    @default("pending")
+  progress      Int       @default(0)
+  totalItems    Int       @default(0) @map("total_items")
+  itemsScraped  Int       @default(0) @map("items_scraped")
+  errorMessage  String?   @map("error_message")
+  resultSummary String?   @map("result_summary")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  @@map("scraping_jobs")
+}
+
+model Settings {
+  id        Int     @id @default(autoincrement())
+  key       String  @unique
+  value     String
+  
+  @@map("settings")
+}
+

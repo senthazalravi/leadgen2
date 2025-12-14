@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gradient-aurora: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-nordic: linear-gradient(135deg, #88C0D0 0%, #5E81AC 50%, #B48EAD 100%);
+}
+
+body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* Status badge colors */
+.status-HOT {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+}
+
+.status-IN_PROGRESS {
+  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+}
+
+.status-QUALIFIED {
+  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+}
+
+.status-DISQUALIFIED {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.status-FUTURE {
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+}
+
+.status-NEW {
+  background: linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+/* Button styles */
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-outrinsic-500 to-outrinsic-600 hover:from-outrinsic-600 hover:to-outrinsic-700;
+    @apply text-white font-medium py-2 px-4 rounded-lg transition-all duration-200;
+    @apply shadow-lg hover:shadow-xl transform hover:-translate-y-0.5;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+
+  .btn-secondary {
+    @apply bg-slate-700 hover:bg-slate-600;
+    @apply text-white font-medium py-2 px-4 rounded-lg transition-all duration-200;
+    @apply border border-slate-600 hover:border-slate-500;
+  }
+
+  .card {
+    @apply bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50;
+    @apply shadow-xl;
+  }
+
+  .card-hover {
+    @apply hover:border-outrinsic-500/30 hover:shadow-outrinsic-500/10;
+    @apply transition-all duration-300;
+  }
+
+  .input {
+    @apply w-full px-4 py-2.5 bg-slate-900/50 border border-slate-700 rounded-lg;
+    @apply text-white placeholder-slate-500;
+    @apply focus:ring-2 focus:ring-outrinsic-500 focus:border-transparent focus:outline-none;
+    @apply transition-all;
+  }
+}
+
