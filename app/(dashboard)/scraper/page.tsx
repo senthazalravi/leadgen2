@@ -255,10 +255,15 @@ export default function ScraperPage() {
                             <span>{summary.companiesFound} companies</span>
                           </div>
                         )}
-                        {summary.emailsFound !== undefined && (
+                        {summary.leadsCreated !== undefined && (
                           <div className="flex items-center gap-1 text-slate-400">
                             <Users className="w-4 h-4" />
-                            <span>{summary.emailsFound} emails</span>
+                            <span>{summary.leadsCreated} leads</span>
+                          </div>
+                        )}
+                        {summary.emailsFound !== undefined && summary.emailsFound > 0 && (
+                          <div className="flex items-center gap-1 text-green-400">
+                            <span>📧 {summary.emailsFound} emails found</span>
                           </div>
                         )}
                       </div>
