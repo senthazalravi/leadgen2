@@ -166,7 +166,8 @@ async function scrapeInBackground(jobId: number, url: string, jobType: string) {
       
       // Find emails using regex
       const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g
-      const emails = [...new Set(text.match(emailRegex) || [])]
+      const emailMatches = text.match(emailRegex) || []
+      const emails = Array.from(new Set(emailMatches))
       emailsFound = emails.length
 
       // Get title as company name

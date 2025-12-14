@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
       const analysis = await analyzeCompanyAndSuggestServices(
         lead.companyName || 'Unknown Company',
         companyInfo,
-        lead.company?.industry,
-        lead.company?.website || undefined
+        lead.company?.industry ?? undefined,
+        lead.company?.website ?? undefined
       )
       suggestedServices = analysis.suggestedServices
       proposalPoints = analysis.proposalPoints
